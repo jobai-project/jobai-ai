@@ -9,10 +9,14 @@ WORKDIR /app
 COPY ai-server/requirements.txt .
 
 RUN pip install --upgrade pip \
-    && pip install -r requirements.txt
+    && pip install -r requirements.txt \
+    && pip install awscli
 
 COPY ai-server/ .
+COPY entrypoint.sh .
+
+RUN chmod +x entrypoint.sh
 
 EXPOSE 8001
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+ENTRYPOINT ["./entrypoint.sh"]
