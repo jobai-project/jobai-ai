@@ -32,7 +32,7 @@ class EmbedResponse(BaseModel):
 
 # 배치 임베딩 schema (id 기반)
 class BatchEmbedItem(BaseModel):
-    id: int
+    id: int | str
     text: str
 
 
@@ -41,7 +41,7 @@ class BatchEmbedRequest(BaseModel):
 
 
 class BatchEmbedResponseItem(BaseModel):
-    id: int
+    id: int | str
     vector: list[float]
 
 
@@ -61,7 +61,7 @@ class ResumeBatchEmbedRequest(BaseModel):
 
 # 사기업 score schema
 class ScorePrivateRequest(BaseModel):
-    job_id: Optional[str] = None
+    job_id: Optional[int | str] = None
     title: Optional[str] = None
     job_category: Optional[str] = None
 
@@ -93,14 +93,20 @@ class ScorePrivateResponse(BaseModel):
 
 # 공기업 score schema
 class ScorePublicRequest(BaseModel):
-    job_id: Optional[str] = None
+    job_id: Optional[int | str] = None
+
     title: Optional[str] = None
     company_name: Optional[str] = None
     job_role: Optional[str] = None
+
+    work_experience: Optional[str] = None
+    recrut_type: Optional[str] = None
+
     apply_qualification: Optional[str] = None
+    application_method: Optional[str] = None
     html_content: Optional[str] = None
 
-    jd_text: str
+    jd_text: str = ""
     resume: dict
     jd_vec: list[float]
     resume_vec: list[float]
@@ -202,6 +208,9 @@ def score_public_endpoint(req: ScorePublicRequest):
         job_role=req.job_role,
         apply_qualification=req.apply_qualification,
         html_content=req.html_content,
+        work_experience=req.work_experience,
+        recrut_type=req.recrut_type,
+        application_method=req.application_method,
     )
 
 
