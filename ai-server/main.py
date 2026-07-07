@@ -30,12 +30,23 @@ class EmbedResponse(BaseModel):
     vector: list[float]
 
 
+# 배치 임베딩 schema (id 기반)
+class BatchEmbedItem(BaseModel):
+    id: int
+    text: str
+
+
 class BatchEmbedRequest(BaseModel):
-    texts: list[str]
+    items: list[BatchEmbedItem]
+
+
+class BatchEmbedResponseItem(BaseModel):
+    id: int
+    vector: list[float]
 
 
 class BatchEmbedResponse(BaseModel):
-    vectors: list[list[float]]
+    items: list[BatchEmbedResponseItem]
 
 
 class ResumeEmbedRequest(BaseModel):
@@ -44,9 +55,8 @@ class ResumeEmbedRequest(BaseModel):
 
 
 class ResumeBatchEmbedRequest(BaseModel):
-    texts: list[str]
+    items: list[BatchEmbedItem]
     model_type: Literal["private", "public"]
-
 
 
 # 사기업 score schema
@@ -117,7 +127,6 @@ class ScorePublicResponse(BaseModel):
     penalties: list[str]
 
 
-
 # embedding 함수
 def encode_jd(text: str) -> list[float]:
     inputs = jd_tokenizer(
@@ -126,10 +135,8 @@ def encode_jd(text: str) -> list[float]:
         truncation=True,
         max_length=512,
     )
-
     with torch.no_grad():
         outputs = jd_model(**inputs)
-
     return outputs.last_hidden_state[:, 0, :].squeeze().tolist()
 
 
@@ -145,7 +152,12 @@ def embed_jd(req: EmbedRequest):
 
 @app.post("/embed/jd/batch", response_model=BatchEmbedResponse)
 def embed_jd_batch(req: BatchEmbedRequest):
-    return {"vectors": [encode_jd(text) for text in req.texts]}
+    return {
+        "items": [
+            {"id": item.id, "vector": encode_jd(item.text)}
+            for item in req.items
+        ]
+    }
 
 
 @app.post("/score/private", response_model=ScorePrivateResponse)
@@ -170,7 +182,12 @@ def embed_ncs(req: EmbedRequest):
 
 @app.post("/embed/ncs/batch", response_model=BatchEmbedResponse)
 def embed_ncs_batch(req: BatchEmbedRequest):
-    return {"vectors": ncs_model.encode(req.texts).tolist()}
+    return {
+        "items": [
+            {"id": item.id, "vector": encode_ncs(item.text)}
+            for item in req.items
+        ]
+    }
 
 
 @app.post("/score/public", response_model=ScorePublicResponse)
@@ -188,16 +205,13 @@ def score_public_endpoint(req: ScorePublicRequest):
     )
 
 
-
 # 이력서 엔드포인트
 @app.post("/embed/resume", response_model=EmbedResponse)
 def embed_resume(req: ResumeEmbedRequest):
     if req.model_type == "private":
         return {"vector": encode_jd(req.text)}
-
     if req.model_type == "public":
         return {"vector": encode_ncs(req.text)}
-
     raise HTTPException(
         status_code=400,
         detail="model_type must be 'private' or 'public'",
@@ -207,11 +221,19 @@ def embed_resume(req: ResumeEmbedRequest):
 @app.post("/embed/resume/batch", response_model=BatchEmbedResponse)
 def embed_resume_batch(req: ResumeBatchEmbedRequest):
     if req.model_type == "private":
-        return {"vectors": [encode_jd(text) for text in req.texts]}
-
+        return {
+            "items": [
+                {"id": item.id, "vector": encode_jd(item.text)}
+                for item in req.items
+            ]
+        }
     if req.model_type == "public":
-        return {"vectors": ncs_model.encode(req.texts).tolist()}
-
+        return {
+            "items": [
+                {"id": item.id, "vector": encode_ncs(item.text)}
+                for item in req.items
+            ]
+        }
     raise HTTPException(
         status_code=400,
         detail="model_type must be 'private' or 'public'",
