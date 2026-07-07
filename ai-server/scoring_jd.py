@@ -13,16 +13,128 @@ TECH_KEYWORDS = [
     "Terraform", "Jenkins", "CI/CD",
 ]
 
-# 가중치 (cs_ts_equal 기준 - 실험 결과 최적)
 W_TS = 0.30
 W_CS = 0.35
 W_QS = 0.20
+
+ALERT_THRESHOLD = 70
+
+
+# ── 유틸 ──────────────────────────────────────────
+
+def _to_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    text = str(value).strip()
+    if not text:
+        return []
+    text = text.replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+    if "," in text:
+        return [x.strip() for x in text.split(",") if x.strip()]
+    return [text]
+
+
+def _clean_items(items):
+    seen = set()
+    result = []
+    for item in _to_list(items):
+        item = re.sub(r"\s+", " ", str(item)).strip()
+        if not item:
+            continue
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
+
+
+def _format_items(items, max_items=3):
+    items = _clean_items(items)
+    if not items:
+        return "일치 키워드 없음"
+    return ", ".join(items[:max_items])
+
+
+def _safe_float(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
 
 
 def extract_tech_from_text(text: str) -> list[str]:
     return [t for t in TECH_KEYWORDS
             if re.search(r"\b" + re.escape(t) + r"\b", text, re.IGNORECASE)]
 
+
+def _extract_years_from_text(text: str):
+    patterns = [
+        r"경력\s*(\d+)\s*년",
+        r"(\d+)\s*년\s*이상",
+        r"(\d+)\s*년\s*이상의\s*경력",
+    ]
+    for pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            try:
+                return float(m.group(1))
+            except Exception:
+                pass
+    return None
+
+
+# ── 문구 생성 ─────────────────────────────────────
+
+def _make_penalty_note(penalties: list[str]) -> str:
+    joined = " ".join(penalties)
+    if "필수 기술" in joined or "기술 미보유" in joined:
+        return "필수 기술 미보유로 최종 점수 제한."
+    if "경력" in joined:
+        return "경력 요건 미달로 최종 점수 제한."
+    if penalties:
+        return "필수 요건 미충족으로 최종 점수 제한."
+    return ""
+
+
+def _make_skill_line(matched_skills: list, missing_skills: list, jd_techs: list) -> str:
+    matched = _clean_items(matched_skills)
+    total = len(jd_techs)
+    matched_n = len(matched)
+    preview = _format_items(matched)
+    if total > 0:
+        return f"필요기술 {matched_n}/{total}개 일치 ({preview})."
+    return "기술 키워드 매칭 기반으로 산출되었습니다."
+
+
+def _make_career_line(required_years, resume_years: float) -> str:
+    if required_years is None or _safe_float(required_years, 0) <= 0:
+        return "경력 요건 없음 또는 신입 지원 가능."
+    return f"경력 {required_years:g}년 요구 중 {resume_years:g}년 보유."
+
+
+def _make_job_match_line(jd_text: str) -> str:
+    return "기술·경력·직무 적합도와 이력서-공고 유사도를 종합 반영함."
+
+
+def _make_score_reason(
+    matched_skills, missing_skills, jd_techs,
+    required_years, resume_years,
+    jd_text, penalties
+) -> str:
+    line1 = _make_skill_line(matched_skills, missing_skills, jd_techs)
+    line2 = _make_career_line(required_years, resume_years)
+    line3 = _make_job_match_line(jd_text)
+    penalty_note = _make_penalty_note(penalties)
+    line4 = penalty_note if penalty_note else "기술·경력·직무 적합도와 이력서-공고 유사도를 종합 반영함."
+    return "\n".join([line1, line2, line3, line4])
+
+
+# ── 파싱 ──────────────────────────────────────────
 
 def parse_jd(jd_text: str) -> dict:
     preferred_text = ""
@@ -32,11 +144,7 @@ def parse_jd(jd_text: str) -> dict:
         preferred_text = jd_text[m.start():]
         main_text = jd_text[:m.start()]
 
-    required_years = None
-    ym = re.search(r"경력\s*(\d+)년\s*이상", jd_text)
-    if ym:
-        required_years = int(ym.group(1))
-
+    required_years = _extract_years_from_text(jd_text)
     preferred_keywords = [
         k.strip() for k in re.findall(r"-\s*([^\n]+)", preferred_text)
         if len(k.strip()) > 2
@@ -50,47 +158,38 @@ def parse_jd(jd_text: str) -> dict:
     }
 
 
-def parse_resume(resume_text: str, resume_skills: list[str], experience_years: int) -> dict:
-    return {
-        "resume_text": resume_text,
-        "skills": resume_skills,
-        "experience_years": experience_years,
-    }
+# ── 점수 계산 ─────────────────────────────────────
 
-
-def calc_ts(jd_parsed: dict, resume_parsed: dict) -> tuple:
+def calc_ts(jd_parsed: dict, resume_skills: list) -> tuple:
     jd_techs = jd_parsed["jd_techs"]
-    skills_lower = [s.lower() for s in resume_parsed["skills"]]
+    skills_lower = [s.lower() for s in resume_skills]
     matched = [t for t in jd_techs if t.lower() in skills_lower]
     missing = [t for t in jd_techs if t.lower() not in skills_lower]
     ts = len(matched) / len(jd_techs) if jd_techs else 0.0
     return float(ts), matched, missing
 
 
-def calc_cs(jd_parsed: dict, resume_parsed: dict, jd_vec: list, resume_vec: list) -> float:
+def calc_cs(jd_vec: list, resume_vec: list) -> float:
     jd_arr = np.array(jd_vec).reshape(1, -1)
     resume_arr = np.array(resume_vec).reshape(1, -1)
     cs = float(cos_sim(jd_arr, resume_arr)[0][0])
     return (cs + 1) / 2
 
 
-def calc_qs(jd_parsed: dict, resume_parsed: dict) -> float:
+def calc_qs(jd_parsed: dict, resume_skills: list, experience_years: float) -> float:
     required_years = jd_parsed.get("required_years")
-    resume_years = resume_parsed.get("experience_years", 0) or 0
-
     if required_years is None:
         career_score = 1.0
-    elif resume_years >= required_years:
+    elif experience_years >= required_years:
         career_score = 1.0
     else:
-        career_score = resume_years / required_years
+        career_score = experience_years / required_years
 
     preferred_kws = jd_parsed.get("preferred_keywords", [])
-    skills = resume_parsed.get("skills", [])
     if preferred_kws:
         preferred_matched = sum(
             1 for kw in preferred_kws
-            if any(s.lower() in kw.lower() for s in skills)
+            if any(s.lower() in kw.lower() for s in resume_skills)
         )
         preferred_score = preferred_matched / len(preferred_kws)
     else:
@@ -118,6 +217,8 @@ def apply_gp(base_score: float, missing_skills: list, jd_techs_count: int) -> tu
     return float(max(0, score)), penalties
 
 
+# ── 최종 점수 산출 ────────────────────────────────
+
 def score_private(
     jd_text: str,
     resume_text: str,
@@ -127,28 +228,33 @@ def score_private(
     experience_years: int,
 ) -> dict:
     jd_parsed = parse_jd(jd_text)
-    resume_parsed = parse_resume(resume_text, resume_skills, experience_years)
+    resume_years = _safe_float(experience_years, 0.0)
 
-    ts, matched_skills, missing_skills = calc_ts(jd_parsed, resume_parsed)
-    cs = calc_cs(jd_parsed, resume_parsed, jd_vec, resume_vec)
-    qs = calc_qs(jd_parsed, resume_parsed)
+    ts, matched_skills, missing_skills = calc_ts(jd_parsed, resume_skills)
+    cs = calc_cs(jd_vec, resume_vec)
+    qs = calc_qs(jd_parsed, resume_skills, resume_years)
 
     base_score = 100 * (W_TS * ts + W_CS * cs + W_QS * qs)
     final_score, penalties = apply_gp(base_score, missing_skills, len(jd_parsed["jd_techs"]))
 
+    score_reason = _make_score_reason(
+        matched_skills=matched_skills,
+        missing_skills=missing_skills,
+        jd_techs=jd_parsed["jd_techs"],
+        required_years=jd_parsed.get("required_years"),
+        resume_years=resume_years,
+        jd_text=jd_text,
+        penalties=penalties,
+    )
+
     required_year = jd_parsed.get("required_years") or 0
-    skill_note = " (필수 기술 미보유로 점수 제한)" if missing_skills else ""
-    score_reason = " ".join([
-        f"필수 기술 {len(matched_skills)}/{len(jd_parsed['jd_techs'])}개 일치 ({', '.join(matched_skills[:3])}).",
-        f"경력 {required_year}년 요구 중 {experience_years}년 보유.",
-        f"필수 요구사항 충족{skill_note}.",
-    ])
 
     return {
         "score": round(final_score, 1),
+        "above_threshold": final_score >= ALERT_THRESHOLD,
         "matched_skills": matched_skills,
         "missing_skills": missing_skills[:5],
-        "career_met": (experience_years >= required_year) if required_year else True,
+        "career_met": resume_years >= required_year if required_year else True,
         "score_reason": score_reason,
         "penalties": penalties,
         "model_version": "kosimcse-final",
