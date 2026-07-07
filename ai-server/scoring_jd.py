@@ -1,8 +1,15 @@
 # scoring_jd.py
+# 사기업 점수 산출 로직
+# 가중치: Ts 0.30 / Cs 0.35 / Qs 0.20 (cs_ts_equal 실험 결과 최적)
 
 import re
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity as cos_sim
+
+ALERT_THRESHOLD = 70
+
+W_TS = 0.30
+W_CS = 0.35
+W_QS = 0.20
 
 TECH_KEYWORDS = [
     "Python", "Java", "Kotlin", "Swift", "JavaScript", "TypeScript",
@@ -12,12 +19,6 @@ TECH_KEYWORDS = [
     "PyTorch", "TensorFlow", "LLM", "CUDA", "MLOps", "NLP", "Git", "Linux",
     "Terraform", "Jenkins", "CI/CD",
 ]
-
-W_TS = 0.30
-W_CS = 0.35
-W_QS = 0.20
-
-ALERT_THRESHOLD = 70
 
 
 # ── 유틸 ──────────────────────────────────────────
@@ -101,7 +102,7 @@ def _make_penalty_note(penalties: list[str]) -> str:
     return ""
 
 
-def _make_skill_line(matched_skills: list, missing_skills: list, jd_techs: list) -> str:
+def _make_skill_line(matched_skills: list, jd_techs: list) -> str:
     matched = _clean_items(matched_skills)
     total = len(jd_techs)
     matched_n = len(matched)
@@ -117,18 +118,14 @@ def _make_career_line(required_years, resume_years: float) -> str:
     return f"경력 {required_years:g}년 요구 중 {resume_years:g}년 보유."
 
 
-def _make_job_match_line(jd_text: str) -> str:
-    return "기술·경력·직무 적합도와 이력서-공고 유사도를 종합 반영함."
-
-
 def _make_score_reason(
-    matched_skills, missing_skills, jd_techs,
+    matched_skills, jd_techs,
     required_years, resume_years,
-    jd_text, penalties
+    penalties
 ) -> str:
-    line1 = _make_skill_line(matched_skills, missing_skills, jd_techs)
+    line1 = _make_skill_line(matched_skills, jd_techs)
     line2 = _make_career_line(required_years, resume_years)
-    line3 = _make_job_match_line(jd_text)
+    line3 = "기술·경력·직무 적합도와 이력서-공고 유사도를 종합 반영함."
     penalty_note = _make_penalty_note(penalties)
     line4 = penalty_note if penalty_note else "기술·경력·직무 적합도와 이력서-공고 유사도를 종합 반영함."
     return "\n".join([line1, line2, line3, line4])
@@ -172,8 +169,8 @@ def calc_ts(jd_parsed: dict, resume_skills: list) -> tuple:
 def calc_cs(jd_vec: list, resume_vec: list) -> float:
     jd_arr = np.array(jd_vec).reshape(1, -1)
     resume_arr = np.array(resume_vec).reshape(1, -1)
-    cs = float(cos_sim(jd_arr, resume_arr)[0][0])
-    return (cs + 1) / 2
+    raw_cs = float(np.dot(jd_arr, resume_arr.T)[0][0])
+    return (raw_cs + 1) / 2
 
 
 def calc_qs(jd_parsed: dict, resume_skills: list, experience_years: float) -> float:
@@ -221,7 +218,6 @@ def apply_gp(base_score: float, missing_skills: list, jd_techs_count: int) -> tu
 
 def score_private(
     jd_text: str,
-    resume_text: str,
     jd_vec: list,
     resume_vec: list,
     resume_skills: list[str],
@@ -239,11 +235,9 @@ def score_private(
 
     score_reason = _make_score_reason(
         matched_skills=matched_skills,
-        missing_skills=missing_skills,
         jd_techs=jd_parsed["jd_techs"],
         required_years=jd_parsed.get("required_years"),
         resume_years=resume_years,
-        jd_text=jd_text,
         penalties=penalties,
     )
 

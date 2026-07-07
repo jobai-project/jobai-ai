@@ -33,7 +33,8 @@ class BatchEmbedResponse(BaseModel):
 
 class ScorePrivateRequest(BaseModel):
     jd_text: str
-    resume_text: str
+    jd_vec: list[float]
+    resume_vec: list[float]
     resume_skills: list[str]
     experience_years: int
 
@@ -43,8 +44,27 @@ class ScorePublicRequest(BaseModel):
     jd_vec: list[float]
     resume_vec: list[float]
 
-class ScoreResponse(BaseModel):
+class ScorePrivateResponse(BaseModel):
     score: float
+    above_threshold: bool
+    matched_skills: list[str]
+    missing_skills: list[str]
+    career_met: bool
+    score_reason: str
+    penalties: list[str]
+    model_version: str
+
+class ScorePublicResponse(BaseModel):
+    score: float
+    above_threshold: bool
+    Kw: float
+    Cs: float
+    Ws: float
+    matched_skills: list[str]
+    missing_skills: list[str]
+    missing_certs: list[str]
+    job_cluster: str
+    resume_cluster: str
     score_reason: str
     penalties: list[str]
     model_version: str
@@ -58,38 +78,35 @@ def encode_jd(text: str) -> list[float]:
 
 
 # 사기업 엔드포인트
-@app.post("/embed/jd")
+@app.post("/embed/jd", response_model=EmbedResponse)
 def embed_jd(req: EmbedRequest):
     return {"vector": encode_jd(req.text)}
 
-@app.post("/embed/jd/batch")
+@app.post("/embed/jd/batch", response_model=BatchEmbedResponse)
 def embed_jd_batch(req: BatchEmbedRequest):
     return {"vectors": [encode_jd(text) for text in req.texts]}
 
-@app.post("/score/private")
+@app.post("/score/private", response_model=ScorePrivateResponse)
 def score_private_endpoint(req: ScorePrivateRequest):
-    jd_vec = encode_jd(req.jd_text)
-    resume_vec = encode_jd(req.resume_text)
     return score_private(
         jd_text=req.jd_text,
-        resume_text=req.resume_text,
-        jd_vec=jd_vec,
-        resume_vec=resume_vec,
+        jd_vec=req.jd_vec,
+        resume_vec=req.resume_vec,
         resume_skills=req.resume_skills,
         experience_years=req.experience_years,
     )
 
 
 # 공기업 엔드포인트
-@app.post("/embed/ncs")
+@app.post("/embed/ncs", response_model=EmbedResponse)
 def embed_ncs(req: EmbedRequest):
     return {"vector": ncs_model.encode(req.text).tolist()}
 
-@app.post("/embed/ncs/batch")
+@app.post("/embed/ncs/batch", response_model=BatchEmbedResponse)
 def embed_ncs_batch(req: BatchEmbedRequest):
     return {"vectors": ncs_model.encode(req.texts).tolist()}
 
-@app.post("/score/public")
+@app.post("/score/public", response_model=ScorePublicResponse)
 def score_public_endpoint(req: ScorePublicRequest):
     return score_ncs(
         jd_text=req.jd_text,
@@ -100,12 +117,14 @@ def score_public_endpoint(req: ScorePublicRequest):
 
 
 # 이력서 엔드포인트
-@app.post("/embed/resume")
+@app.post("/embed/resume", response_model=EmbedResponse)
 def embed_resume(req: EmbedRequest):
+    # 사기업 모델 사용 (이력서 전용 모델 없음)
     return {"vector": encode_jd(req.text)}
 
-@app.post("/embed/resume/batch")
+@app.post("/embed/resume/batch", response_model=BatchEmbedResponse)
 def embed_resume_batch(req: BatchEmbedRequest):
+    # 사기업 모델 사용 (이력서 전용 모델 없음)
     return {"vectors": [encode_jd(text) for text in req.texts]}
 
 

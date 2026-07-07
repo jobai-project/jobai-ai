@@ -1,10 +1,9 @@
 # scoring_ncs.py
 # 공기업 NCS 점수 산출 로직
-# 원본: 현재_공고_matching_score_test.ipynb
+# 가중치: Kw 0.25 / Cs 0.35 / Ws 0.40
 
 import re
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
 ALERT_THRESHOLD = 70
 
@@ -13,29 +12,6 @@ DEFAULT_WEIGHTS = {
     "Cs": 0.35,
     "Ws": 0.40,
 }
-
-# ── 유틸 ──────────────────────────────────────────
-
-def compact_text(text):
-    return re.sub(r"\s+", " ", str(text or "")).strip()
-
-
-def safe_join(parts):
-    return " ".join(compact_text(p) for p in parts if compact_text(p))
-
-
-def ratio(a, b):
-    return float(a) / float(b) if b > 0 else 0.0
-
-
-def _safe_float(value, default=0.0):
-    try:
-        if value is None:
-            return default
-        return float(value)
-    except Exception:
-        return default
-
 
 # ── 키워드 사전 ───────────────────────────────────
 
@@ -99,7 +75,28 @@ RESUME_CLUSTER_KEYWORDS = {
 }
 
 
-# ── 텍스트 정규화 ─────────────────────────────────
+# ── 유틸 ──────────────────────────────────────────
+
+def compact_text(text):
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def safe_join(parts):
+    return " ".join(compact_text(p) for p in parts if compact_text(p))
+
+
+def ratio(a, b):
+    return float(a) / float(b) if b > 0 else 0.0
+
+
+def _safe_float(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
+
 
 def lower_text(text):
     return compact_text(text).lower()
@@ -261,23 +258,17 @@ def keyword_match_score(resume: dict, jd_text: str) -> dict:
 def structural_score(resume: dict, jd_text: str, kw_info: dict) -> dict:
     resume_text = resume_to_text(resume)
 
-    # 클러스터 매칭
     job_cluster = get_job_cluster(jd_text)
     resume_cluster = get_resume_cluster(resume_text)
     cluster_match = 1.0 if job_cluster == resume_cluster else (0.5 if resume_cluster != "UNKNOWN" else 0.0)
 
-    # 기술 스킬
-    skills = normalize_skills(resume.get("skills"))
-    resume_skill_text = " ".join(skills)
     skill_kws = kw_info["skill_kws"]
     matched_skills = kw_info["matched_skills"]
     skill_part = ratio(len(matched_skills), len(skill_kws))
 
-    # 지식
     knowledge_part = ratio(len(kw_info["matched_knowledge"]), len(kw_info["knowledge_kws"]))
     task_part = 0.60 * cluster_match + 0.40 * knowledge_part
 
-    # 경력
     required_years = extract_required_years(jd_text)
     resume_years = _safe_float(resume.get("experience_years"), 0.0)
     if required_years is None:
@@ -287,7 +278,6 @@ def structural_score(resume: dict, jd_text: str, kw_info: dict) -> dict:
         career_part = min(1.0, resume_years / max(required_years, 1))
         required_years_display = required_years
 
-    # 자격
     required_certs = extract_required_certs(jd_text)
     resume_certs = resume.get("certs") or resume.get("certificates") or []
     if isinstance(resume_certs, str):
@@ -391,13 +381,11 @@ def score_ncs(
     if weights is None:
         weights = DEFAULT_WEIGHTS
 
-    # Cs
     jd_arr = np.array(jd_vec).reshape(1, -1)
     resume_arr = np.array(resume_vec).reshape(1, -1)
     raw_cs = float(np.dot(jd_arr, resume_arr.T)[0][0])
-    cs = max(0.0, min(1.0, raw_cs))
+    cs = (raw_cs + 1) / 2  # -1~1 → 0~1 정규화 (scoring_jd와 동일 방식)
 
-    # Kw, Ws
     kw_info = keyword_match_score(resume, jd_text)
     ws_info = structural_score(resume, jd_text, kw_info)
 
