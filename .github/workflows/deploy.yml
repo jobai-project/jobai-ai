@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Docker image tag to push"
+        description: "Docker image tag to push and deploy"
         required: false
         default: "test"
 
@@ -12,21 +12,36 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: ai-deploy
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 077660206269.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REPOSITORY: jobai-ai-server
+  AI_EC2_INSTANCE_ID: i-08aa8bb37f1df87c1
+  AI_MODEL_S3_BUCKET: jobai-ai-models-077660206269-ap-northeast-2
+  JD_MODEL_S3_PREFIX: models/jd/
+  NCS_MODEL_S3_PREFIX: models/ncs/
+  JD_MODEL_LOCAL_DIR: /models/jd
+  NCS_MODEL_LOCAL_DIR: /models/ncs
+
 jobs:
-  ecr-push:
-    name: Build and Push ECR Image
+  deploy:
+    name: Build, Push, and Deploy AI Server
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
-      AWS_REGION: ap-northeast-2
-      ECR_REGISTRY: 077660206269.dkr.ecr.ap-northeast-2.amazonaws.com
-      ECR_REPOSITORY: jobai-ai-server
       IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE_URI: 077660206269.dkr.ecr.ap-northeast-2.amazonaws.com/jobai-ai-server:${{ inputs.image_tag }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -38,7 +53,61 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build Docker image
-        run: docker build -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" .
+        run: docker build -t "${IMAGE_URI}" .
 
       - name: Push Docker image
-        run: docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+        run: docker push "${IMAGE_URI}"
+
+      - name: Deploy on AI EC2 through SSM
+        run: |
+          cat > ssm-command.json <<EOF
+          {
+            "DocumentName": "AWS-RunShellScript",
+            "InstanceIds": ["${AI_EC2_INSTANCE_ID}"],
+            "Parameters": {
+              "executionTimeout": ["1800"],
+              "commands": [
+                "set -e",
+                "sudo systemctl start docker",
+                "aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}",
+                "sudo docker pull ${IMAGE_URI}",
+                "sudo docker rm -f jobai-ai-server || true",
+                "sudo mkdir -p /opt/jobai-ai/models",
+                "sudo docker run -d --name jobai-ai-server --restart unless-stopped --network host -e AI_MODEL_S3_BUCKET=${AI_MODEL_S3_BUCKET} -e JD_MODEL_S3_PREFIX=${JD_MODEL_S3_PREFIX} -e NCS_MODEL_S3_PREFIX=${NCS_MODEL_S3_PREFIX} -e JD_MODEL_LOCAL_DIR=${JD_MODEL_LOCAL_DIR} -e NCS_MODEL_LOCAL_DIR=${NCS_MODEL_LOCAL_DIR} -v /opt/jobai-ai/models:/models ${IMAGE_URI}",
+                "healthy=0; for i in \$(seq 1 60); do if curl -fsS http://localhost:8001/health; then healthy=1; break; fi; sleep 5; done; if [ \"\$healthy\" != \"1\" ]; then sudo docker logs --tail 200 jobai-ai-server; exit 1; fi",
+                "sudo docker image prune -af --filter until=24h || true"
+              ]
+            }
+          }
+          EOF
+
+          command_id=$(aws ssm send-command --cli-input-json file://ssm-command.json --query 'Command.CommandId' --output text)
+          echo "SSM command id: ${command_id}"
+
+          terminal_status=""
+          for i in $(seq 1 180); do
+            status=$(aws ssm get-command-invocation \
+              --command-id "${command_id}" \
+              --instance-id "${AI_EC2_INSTANCE_ID}" \
+              --query 'Status' \
+              --output text 2>/dev/null || true)
+
+            case "${status}" in
+              Success|Failed|TimedOut|Cancelled)
+                terminal_status="${status}"
+                break
+                ;;
+            esac
+
+            sleep 5
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "${command_id}" \
+            --instance-id "${AI_EC2_INSTANCE_ID}" \
+            --query '{Status:Status,StandardOutputContent:StandardOutputContent,StandardErrorContent:StandardErrorContent}'
+
+          if [ "${terminal_status}" != "Success" ]; then
+            echo "SSM command failed or timed out: ${terminal_status:-unknown}"
+            exit 1
+          fi
