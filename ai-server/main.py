@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from scoring_jd import score_private
+from scoring_ncs import score_ncs
 import torch
 import os
 
@@ -36,11 +37,14 @@ class ScorePrivateRequest(BaseModel):
     resume_skills: list[str]
     experience_years: int
 
+class ScorePublicRequest(BaseModel):
+    jd_text: str
+    resume: dict
+    jd_vec: list[float]
+    resume_vec: list[float]
+
 class ScoreResponse(BaseModel):
     score: float
-    matched_skills: list[str]
-    missing_skills: list[str]
-    career_met: bool
     score_reason: str
     penalties: list[str]
     model_version: str
@@ -54,19 +58,19 @@ def encode_jd(text: str) -> list[float]:
 
 
 # 사기업 엔드포인트
-@app.post("/embed/jd", response_model=EmbedResponse)
+@app.post("/embed/jd")
 def embed_jd(req: EmbedRequest):
     return {"vector": encode_jd(req.text)}
 
-@app.post("/embed/jd/batch", response_model=BatchEmbedResponse)
+@app.post("/embed/jd/batch")
 def embed_jd_batch(req: BatchEmbedRequest):
     return {"vectors": [encode_jd(text) for text in req.texts]}
 
-@app.post("/score/private", response_model=ScoreResponse)
+@app.post("/score/private")
 def score_private_endpoint(req: ScorePrivateRequest):
     jd_vec = encode_jd(req.jd_text)
     resume_vec = encode_jd(req.resume_text)
-    result = score_private(
+    return score_private(
         jd_text=req.jd_text,
         resume_text=req.resume_text,
         jd_vec=jd_vec,
@@ -74,25 +78,33 @@ def score_private_endpoint(req: ScorePrivateRequest):
         resume_skills=req.resume_skills,
         experience_years=req.experience_years,
     )
-    return result
 
 
 # 공기업 엔드포인트
-@app.post("/embed/ncs", response_model=EmbedResponse)
+@app.post("/embed/ncs")
 def embed_ncs(req: EmbedRequest):
     return {"vector": ncs_model.encode(req.text).tolist()}
 
-@app.post("/embed/ncs/batch", response_model=BatchEmbedResponse)
+@app.post("/embed/ncs/batch")
 def embed_ncs_batch(req: BatchEmbedRequest):
     return {"vectors": ncs_model.encode(req.texts).tolist()}
 
+@app.post("/score/public")
+def score_public_endpoint(req: ScorePublicRequest):
+    return score_ncs(
+        jd_text=req.jd_text,
+        resume=req.resume,
+        jd_vec=req.jd_vec,
+        resume_vec=req.resume_vec,
+    )
+
 
 # 이력서 엔드포인트
-@app.post("/embed/resume", response_model=EmbedResponse)
+@app.post("/embed/resume")
 def embed_resume(req: EmbedRequest):
     return {"vector": encode_jd(req.text)}
 
-@app.post("/embed/resume/batch", response_model=BatchEmbedResponse)
+@app.post("/embed/resume/batch")
 def embed_resume_batch(req: BatchEmbedRequest):
     return {"vectors": [encode_jd(text) for text in req.texts]}
 
