@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from typing import Optional, Literal
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
@@ -19,62 +21,120 @@ NCS_MODEL_DIR = os.getenv("NCS_MODEL_LOCAL_DIR", "/models/ncs")
 ncs_model = SentenceTransformer(NCS_MODEL_DIR)
 
 
+# 공통 schema
 class EmbedRequest(BaseModel):
     text: str
+
 
 class EmbedResponse(BaseModel):
     vector: list[float]
 
+
 class BatchEmbedRequest(BaseModel):
     texts: list[str]
+
 
 class BatchEmbedResponse(BaseModel):
     vectors: list[list[float]]
 
+
+class ResumeEmbedRequest(BaseModel):
+    text: str
+    model_type: Literal["private", "public"]
+
+
+class ResumeBatchEmbedRequest(BaseModel):
+    texts: list[str]
+    model_type: Literal["private", "public"]
+
+
+
+# 사기업 score schema
 class ScorePrivateRequest(BaseModel):
+    job_id: Optional[str] = None
+    title: Optional[str] = None
+    job_category: Optional[str] = None
+
     jd_text: str
     jd_vec: list[float]
     resume_vec: list[float]
+
     resume_skills: list[str]
     experience_years: int
+    resume_role: Optional[str] = None
 
+
+class ScorePrivateResponse(BaseModel):
+    score: float
+    above_threshold: bool
+
+    ts: float
+    cs: float
+    qs: float
+    gp: float
+
+    matched_skills: list[str]
+    missing_skills: list[str]
+    career_met: bool
+
+    score_reason: str
+    penalties: list[str]
+
+
+# 공기업 score schema
 class ScorePublicRequest(BaseModel):
+    job_id: Optional[str] = None
+    title: Optional[str] = None
+    company_name: Optional[str] = None
+    job_role: Optional[str] = None
+    apply_qualification: Optional[str] = None
+    html_content: Optional[str] = None
+
     jd_text: str
     resume: dict
     jd_vec: list[float]
     resume_vec: list[float]
 
-class ScorePrivateResponse(BaseModel):
-    score: float
-    above_threshold: bool
-    matched_skills: list[str]
-    missing_skills: list[str]
-    career_met: bool
-    score_reason: str
-    penalties: list[str]
-    model_version: str
 
 class ScorePublicResponse(BaseModel):
     score: float
     above_threshold: bool
-    Kw: float
-    Cs: float
-    Ws: float
+
+    kw: float
+    cs: float
+    ws: float
+    gp: float
+
     matched_skills: list[str]
     missing_skills: list[str]
+    matched_certs: list[str]
     missing_certs: list[str]
+
     job_cluster: str
     resume_cluster: str
+
     score_reason: str
     penalties: list[str]
-    model_version: str
 
 
+
+# embedding 함수
 def encode_jd(text: str) -> list[float]:
-    inputs = jd_tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    inputs = jd_tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512,
+    )
+
     with torch.no_grad():
         outputs = jd_model(**inputs)
+
     return outputs.last_hidden_state[:, 0, :].squeeze().tolist()
+
+
+def encode_ncs(text: str) -> list[float]:
+    return ncs_model.encode(text).tolist()
 
 
 # 사기업 엔드포인트
@@ -82,9 +142,11 @@ def encode_jd(text: str) -> list[float]:
 def embed_jd(req: EmbedRequest):
     return {"vector": encode_jd(req.text)}
 
+
 @app.post("/embed/jd/batch", response_model=BatchEmbedResponse)
 def embed_jd_batch(req: BatchEmbedRequest):
     return {"vectors": [encode_jd(text) for text in req.texts]}
+
 
 @app.post("/score/private", response_model=ScorePrivateResponse)
 def score_private_endpoint(req: ScorePrivateRequest):
@@ -94,17 +156,22 @@ def score_private_endpoint(req: ScorePrivateRequest):
         resume_vec=req.resume_vec,
         resume_skills=req.resume_skills,
         experience_years=req.experience_years,
+        job_category=req.job_category,
+        title=req.title,
+        resume_role=req.resume_role,
     )
 
 
 # 공기업 엔드포인트
 @app.post("/embed/ncs", response_model=EmbedResponse)
 def embed_ncs(req: EmbedRequest):
-    return {"vector": ncs_model.encode(req.text).tolist()}
+    return {"vector": encode_ncs(req.text)}
+
 
 @app.post("/embed/ncs/batch", response_model=BatchEmbedResponse)
 def embed_ncs_batch(req: BatchEmbedRequest):
     return {"vectors": ncs_model.encode(req.texts).tolist()}
+
 
 @app.post("/score/public", response_model=ScorePublicResponse)
 def score_public_endpoint(req: ScorePublicRequest):
@@ -113,19 +180,42 @@ def score_public_endpoint(req: ScorePublicRequest):
         resume=req.resume,
         jd_vec=req.jd_vec,
         resume_vec=req.resume_vec,
+        title=req.title,
+        company_name=req.company_name,
+        job_role=req.job_role,
+        apply_qualification=req.apply_qualification,
+        html_content=req.html_content,
     )
+
 
 
 # 이력서 엔드포인트
 @app.post("/embed/resume", response_model=EmbedResponse)
-def embed_resume(req: EmbedRequest):
-    # 사기업 모델 사용 (이력서 전용 모델 없음)
-    return {"vector": encode_jd(req.text)}
+def embed_resume(req: ResumeEmbedRequest):
+    if req.model_type == "private":
+        return {"vector": encode_jd(req.text)}
+
+    if req.model_type == "public":
+        return {"vector": encode_ncs(req.text)}
+
+    raise HTTPException(
+        status_code=400,
+        detail="model_type must be 'private' or 'public'",
+    )
+
 
 @app.post("/embed/resume/batch", response_model=BatchEmbedResponse)
-def embed_resume_batch(req: BatchEmbedRequest):
-    # 사기업 모델 사용 (이력서 전용 모델 없음)
-    return {"vectors": [encode_jd(text) for text in req.texts]}
+def embed_resume_batch(req: ResumeBatchEmbedRequest):
+    if req.model_type == "private":
+        return {"vectors": [encode_jd(text) for text in req.texts]}
+
+    if req.model_type == "public":
+        return {"vectors": ncs_model.encode(req.texts).tolist()}
+
+    raise HTTPException(
+        status_code=400,
+        detail="model_type must be 'private' or 'public'",
+    )
 
 
 # 헬스체크
