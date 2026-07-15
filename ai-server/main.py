@@ -256,8 +256,8 @@ class RerankCandidate(BaseModel):
     id: int
     source: str
     title: str
-    company: str
-    job_category: str
+    company: str = ""
+    job_category: str = ""
 
 class RerankRequest(BaseModel):
     query: str
