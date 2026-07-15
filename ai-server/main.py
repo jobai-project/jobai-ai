@@ -3,7 +3,6 @@ from typing import Optional, Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModel
-from sentence_transformers import SentenceTransformer
 from scoring_jd import score_private
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from scoring_ncs import score_ncs
@@ -261,14 +260,14 @@ class RerankCandidate(BaseModel):
     job_category: str
 
 class RerankRequest(BaseModel):
-      query: str
-      candidates: list[RerankCandidate]
+    query: str
+    candidates: list[RerankCandidate]
 
 
 class RerankScore(BaseModel):
-     id: int
-     source: str
-     score: float
+    id: int
+    source: str
+    score: float
 
 
 class RerankResponse(BaseModel):
@@ -281,20 +280,22 @@ def rerank(req: RerankRequest):
     if not req.candidates:
         return {"results": []}
 
-     pairs = [
+    pairs = [
         (req.query, f"{c.title} | {c.company} | {c.job_category}")
         for c in req.candidates
     ]
+
     scores = rerank_model.predict(pairs)
 
     results = sorted(
-      [
-           {"id": c.id, "source": c.source, "score": float(s)}
+        [
+            {"id": c.id, "source": c.source, "score": float(s)}
             for c, s in zip(req.candidates, scores)
         ],
-         key=lambda r: r["score"],
-         reverse=True,
-     )
+        key=lambda r: r["score"],
+        reverse=True,
+    )
+
     return {"results": results}
 
 # 헬스체크
