@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from scoring_jd import score_private
+from sentence_transformers import SentenceTransformer, CrossEncoder
 from scoring_ncs import score_ncs
 import torch
 import os
@@ -20,6 +21,9 @@ jd_model = AutoModel.from_pretrained(JD_MODEL_DIR)
 NCS_MODEL_DIR = os.getenv("NCS_MODEL_LOCAL_DIR", "/models/ncs")
 ncs_model = SentenceTransformer(NCS_MODEL_DIR)
 
+# Rerank 모델
+RERANK_MODEL_DIR = os.getenv("RERANK_MODEL_LOCAL_DIR", "/models/rerank")
+rerank_model = CrossEncoder(RERANK_MODEL_DIR, max_length=512)
 
 # 공통 schema
 class EmbedRequest(BaseModel):
@@ -248,6 +252,50 @@ def embed_resume_batch(req: ResumeBatchEmbedRequest):
         detail="model_type must be 'private' or 'public'",
     )
 
+# rerank schema
+class RerankCandidate(BaseModel):
+    id: int
+    source: str
+    title: str
+    company: str
+    job_category: str
+
+class RerankRequest(BaseModel):
+      query: str
+      candidates: list[RerankCandidate]
+
+
+class RerankScore(BaseModel):
+     id: int
+     source: str
+     score: float
+
+
+class RerankResponse(BaseModel):
+    results: list[RerankScore]
+
+
+# rerank 엔드포인트
+@app.post("/rerank", response_model=RerankResponse)
+def rerank(req: RerankRequest):
+    if not req.candidates:
+        return {"results": []}
+
+     pairs = [
+        (req.query, f"{c.title} | {c.company} | {c.job_category}")
+        for c in req.candidates
+    ]
+    scores = rerank_model.predict(pairs)
+
+    results = sorted(
+      [
+           {"id": c.id, "source": c.source, "score": float(s)}
+            for c, s in zip(req.candidates, scores)
+        ],
+         key=lambda r: r["score"],
+         reverse=True,
+     )
+    return {"results": results}
 
 # 헬스체크
 @app.get("/health")
