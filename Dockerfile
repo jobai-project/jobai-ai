@@ -12,10 +12,10 @@ RUN pip install --upgrade pip \
     && pip install -r requirements.txt \
     && pip install awscli
 
-RUN python -c "from sentence_transformers import CrossEncoder; model = CrossEncoder('cross-encoder/mmarco-mMiniLMv2-L-6-v2-ko'); model.save('/models/rerank')"
-
 COPY ai-server/ .
 COPY entrypoint.sh .
+
+RUN python -c "from sentence_transformers import CrossEncoder; model = CrossEncoder('cross-encoder/mmarco-mMiniLMv2-L-6-v2-ko'); model.save('/models/rerank')"
 
 RUN chmod +x entrypoint.sh
 
