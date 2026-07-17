@@ -15,7 +15,8 @@ RUN pip install --upgrade pip \
 COPY ai-server/ .
 COPY entrypoint.sh .
 
-RUN python -c "from sentence_transformers import CrossEncoder; model = CrossEncoder('cross-encoder/mmarco-mMiniLMv2-L12-H384-v1'); model.save('/models/rerank')"
+RUN mkdir -p /app/models \
+    && python -c "from sentence_transformers import CrossEncoder; model = CrossEncoder('cross-encoder/mmarco-mMiniLMv2-L12-H384-v1'); model.save('/app/models/rerank')"
 
 RUN chmod +x entrypoint.sh
 

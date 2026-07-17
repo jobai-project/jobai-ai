@@ -21,7 +21,7 @@ NCS_MODEL_DIR = os.getenv("NCS_MODEL_LOCAL_DIR", "/models/ncs")
 ncs_model = SentenceTransformer(NCS_MODEL_DIR)
 
 # Rerank 모델
-RERANK_MODEL_DIR = os.getenv("RERANK_MODEL_LOCAL_DIR", "/models/rerank")
+RERANK_MODEL_DIR = os.getenv("RERANK_MODEL_LOCAL_DIR", "/app/models/rerank")
 rerank_model = CrossEncoder(RERANK_MODEL_DIR, max_length=512)
 
 # 공통 schema
