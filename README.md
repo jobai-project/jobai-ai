@@ -85,6 +85,31 @@
 
 ---
 
+## ⚙️ AI Matching Workflow
+
+<table>
+<tr>
+<td width="50%">
+
+
+
+<img width="2720" height="6059" alt="image" src="https://github.com/user-attachments/assets/c5acd68a-e359-4a84-b7c7-f828643e19ab" />
+
+
+</td>
+<td width="50%">
+
+
+
+<img width="2720" height="6059" alt="image" src="https://github.com/user-attachments/assets/354df053-d225-4080-948d-63ced62a8da1" />
+
+
+</td>
+</tr>
+</table>
+
+---
+
 
 ## ⚛️ AI Matching Engine
 
@@ -123,32 +148,6 @@ final_score = Gp(base_score)
 ```
 
 <br>
-
----
-
-## ⚙️ AI Matching Workflow
-
-<table>
-<tr>
-<td width="50%">
-
-
-
-<img width="2720" height="6059" alt="image" src="https://github.com/user-attachments/assets/c5acd68a-e359-4a84-b7c7-f828643e19ab" />
-
-
-</td>
-<td width="50%">
-
-
-
-<img width="2720" height="6059" alt="image" src="https://github.com/user-attachments/assets/354df053-d225-4080-948d-63ced62a8da1" />
-
-
-</td>
-</tr>
-</table>
-
 
 
 ---
