@@ -10,16 +10,25 @@ W_TS = 0.30
 W_CS = 0.35
 W_QS = 0.20
 
+# TECH_KEYWOTDS 추가 (TECH_DICTIONARY 참고)
 TECH_KEYWORDS = [
     "Python", "Java", "Kotlin", "Swift", "JavaScript", "TypeScript",
     "Spring", "Spring Boot", "FastAPI", "Django", "Flask", "Node.js",
-    "React", "Vue", "Angular", "Next.js", "NestJS",
+    "React", "Vue", "Vue.js", "Angular", "Next.js", "NestJS",
     "Docker", "Kubernetes", "AWS", "GCP", "Azure",
     "PostgreSQL", "MySQL", "MongoDB", "Redis", "Kafka", "Spark",
     "PyTorch", "TensorFlow", "LLM", "CUDA", "MLOps", "NLP", "AI",
     "Git", "Linux", "Terraform", "Jenkins", "CI/CD",
     "Figma", "Jira", "Notion", "SQL", "NoSQL",
     "보안", "정보보안", "취약점", "방화벽", "ISMS",
+    "C++", "C#", "Golang", "Rust", "Scala", "Ruby", "PHP", "Dart", "Perl", "Lua", "Groovy",
+    "Svelte", "Nuxt.js", "HTML", "CSS", "Sass", "Tailwind", "Bootstrap", "jQuery", "Webpack", "Vite",
+    "Express", "Rails", "ASP.NET",
+    "MariaDB", "Oracle", "MSSQL", "Elasticsearch", "Cassandra", "DynamoDB", "SQLite", "Neo4j", "InfluxDB",
+    "K8s", "Ansible", "Nginx", "Apache",
+    "RabbitMQ", "Hadoop", "Airflow", "Pandas", "NumPy", "scikit-learn",
+    "GitHub", "GitLab", "Bitbucket", "Confluence", "GraphQL", "gRPC", "Swagger",
+    "JUnit", "Jest", "Cypress", "Selenium",
 ]
 
 
@@ -84,6 +93,20 @@ def _normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip()
 
 
+# 부분 문자열 중복 추출 제거 
+def _dedup_subset_keywords(keywords: list[str]) -> list[str]:
+    result = []
+    for kw in keywords:
+        kw_l = kw.lower()
+        if any(
+            other != kw and kw_l in other.lower() and len(other) > len(kw)
+            for other in keywords
+        ):
+            continue
+        result.append(kw)
+    return result
+    
+
 # JD 파싱
 def extract_tech_from_text(text: str) -> list[str]:
     text = str(text or "")
@@ -93,6 +116,9 @@ def extract_tech_from_text(text: str) -> list[str]:
         pattern = r"(?<![A-Za-z0-9가-힣])" + re.escape(tech) + r"(?![A-Za-z0-9가-힣])"
         if re.search(pattern, text, re.IGNORECASE):
             found.append(tech)
+            
+    # 문자열 중복 제거
+    found = _dedup_subset_keywords(found)
 
     return _clean_items(found)
 
