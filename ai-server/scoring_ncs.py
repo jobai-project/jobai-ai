@@ -300,6 +300,26 @@ def cluster_relation(resume_cluster: str, job: dict):
     return "mismatch", primary, job_clusters
 
 
+# .js 계열 키워드 정규화 추가
+def _strip_js_suffix(s: str) -> str:
+    s = s.lower()
+    return s[:-3] if s.endswith(".js") else s
+
+
+# 표기 일치 추가
+_TECH_ALIASES = {
+    "golang": "go",
+    "k8s": "kubernetes",
+    "tailwind": "tailwindcss",
+    "rails": "ruby on rails",
+}
+
+
+def _normalize_tech_alias(s: str) -> str:
+    s = _strip_js_suffix(s.lower())
+    return _TECH_ALIASES.get(s, s)
+
+
 
 # 점수 계산
 def calc_kw(job_keywords: list[str], resume_skills: list[str]) -> tuple[float, list[str], list[str]]:
@@ -307,12 +327,14 @@ def calc_kw(job_keywords: list[str], resume_skills: list[str]) -> tuple[float, l
     resume_skills = _clean_items(resume_skills)
 
     resume_skill_set = {s.lower() for s in resume_skills}
+    resume_skill_alias_set = {_normalize_tech_alias(s) for s in resume_skill_set}
 
     matched = []
     missing = []
 
     for kw in job_keywords:
-        if kw.lower() in resume_skill_set:
+        kw_l = kw.lower()
+        if kw_l in resume_skill_set or _normalize_tech_alias(kw_l) in resume_skill_alias_set:
             matched.append(kw)
         else:
             missing.append(kw)
