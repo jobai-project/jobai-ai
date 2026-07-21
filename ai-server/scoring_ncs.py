@@ -173,17 +173,25 @@ def _get_resume_role(resume: dict) -> str:
     return str(resume.get("job_role", "") or "")
 
 
-# 부분 문자열 중복 추출 제거
+# 부분 문자열 중복 추출 제거 함수 보강
+def _tokenize_keyword(s: str) -> set[str]:
+    return {t for t in re.split(r"[^A-Za-z0-9가-힣]+", s.lower()) if t}
+
+
 def _dedup_subset_keywords(keywords: list[str]) -> list[str]:
     result = []
+    tokens_by_kw = {kw: _tokenize_keyword(kw) for kw in keywords}
     for kw in keywords:
-        kw_l = kw.lower()
-        if any(
-            other != kw and kw_l in other.lower() and len(other) > len(kw)
+        kw_tokens = tokens_by_kw[kw]
+        is_subset = any(
+            other != kw
+            and len(other) > len(kw)
+            and kw_tokens
+            and kw_tokens <= tokens_by_kw[other]
             for other in keywords
-        ):
-            continue
-        result.append(kw)
+        )
+        if not is_subset:
+            result.append(kw)
     return result
     
 
