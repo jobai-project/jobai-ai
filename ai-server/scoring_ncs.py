@@ -15,14 +15,14 @@ W_CS = 0.35
 W_WS = 0.40
 
 
+# 범용적인 한국어 일반 명사 제거
 NCS_TECH_KEYWORDS = [
-    "Python", "Java", "SQL", "R", "Linux", "서버", "네트워크", "방화벽",
+    "Python", "Java", "SQL", "R", "Linux", "방화벽",
     "정보보안", "보안", "개인정보", "ISMS", "DB", "데이터베이스",
-    "데이터", "AI", "머신러닝", "통계", "분석", "공공데이터",
-    "시스템", "정보시스템", "전산", "운영", "유지보수",
-    "웹", "API", "Spring", "Spring Boot", "React",
+    "AI", "머신러닝", "통계", "공공데이터",
+    "정보시스템", "API", "Spring", "Spring Boot", "React",
     "클라우드", "AWS", "GCP", "Azure",
-    "통신", "AMI", "DAS", "ICT", "정보화", "PM", "사업관리",
+    "AMI", "DAS", "ICT", "PM",
 ]
 
 CERT_KEYWORDS = [
@@ -173,6 +173,19 @@ def _get_resume_role(resume: dict) -> str:
     return str(resume.get("job_role", "") or "")
 
 
+# 부분 문자열 중복 추출 제거
+def _dedup_subset_keywords(keywords: list[str]) -> list[str]:
+    result = []
+    for kw in keywords:
+        kw_l = kw.lower()
+        if any(
+            other != kw and kw_l in other.lower() and len(other) > len(kw)
+            for other in keywords
+        ):
+            continue
+        result.append(kw)
+    return result
+    
 
 # text 파싱
 def extract_keywords(text: str, keywords: list[str]) -> list[str]:
@@ -184,6 +197,9 @@ def extract_keywords(text: str, keywords: list[str]) -> list[str]:
 
         if re.search(pattern, text, re.IGNORECASE):
             found.append(kw)
+
+    # 부분 문자열 중복 제거
+    found = _dedup_subset_keywords(found)
 
     return _clean_items(found)
 
@@ -352,8 +368,8 @@ def calc_ws(
         cert_score = len(matched_certs) / total_certs
 
     ws = (
-        0.65 * cluster_score
-        + 0.20 * career_score
+        0.40 * cluster_score
+        + 0.45 * career_score
         + 0.10 * cert_score
         + 0.05 * kw
     )
@@ -547,6 +563,12 @@ def score_ncs(
     ]))
 
     resume_skills = _get_resume_skills(resume)
+
+    # 이력서 원문에도 NCS 키워드 추출을 적용해서 resumeSkills에 병합
+    resume_summary = str(resume.get("summary", "") or "")
+    resume_keyword_hits = extract_keywords(resume_summary, NCS_TECH_KEYWORDS)
+    resume_skills = list(dict.fromkeys(resume_skills + resume_keyword_hits))
+
     resume_certs = _get_resume_certs(resume)
     resume_years = _get_resume_years(resume)
 
