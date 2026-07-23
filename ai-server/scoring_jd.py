@@ -12,23 +12,58 @@ W_QS = 0.20
 
 # TECH_KEYWOTDS 추가 (TECH_DICTIONARY 참고)
 TECH_KEYWORDS = [
-    "Python", "Java", "Kotlin", "Swift", "JavaScript", "TypeScript",
-    "Spring", "Spring Boot", "FastAPI", "Django", "Flask", "Node.js",
-    "React", "Vue", "Vue.js", "Angular", "Next.js", "NestJS",
-    "Docker", "Kubernetes", "AWS", "GCP", "Azure",
-    "PostgreSQL", "MySQL", "MongoDB", "Redis", "Kafka", "Spark",
-    "PyTorch", "TensorFlow", "LLM", "CUDA", "MLOps", "NLP", "AI",
-    "Git", "Linux", "Terraform", "Jenkins", "CI/CD",
-    "Figma", "Jira", "Notion", "SQL", "NoSQL",
-    "보안", "정보보안", "취약점", "방화벽", "ISMS",
-    "C++", "C#", "Golang", "Rust", "Scala", "Ruby", "PHP", "Dart", "Perl", "Lua", "Groovy",
-    "Svelte", "Nuxt.js", "HTML", "CSS", "Sass", "Tailwind", "Bootstrap", "jQuery", "Webpack", "Vite",
-    "Express", "Rails", "ASP.NET",
-    "MariaDB", "Oracle", "MSSQL", "Elasticsearch", "Cassandra", "DynamoDB", "SQLite", "Neo4j", "InfluxDB",
-    "K8s", "Ansible", "Nginx", "Apache",
-    "RabbitMQ", "Hadoop", "Airflow", "Pandas", "NumPy", "scikit-learn",
-    "GitHub", "GitLab", "Bitbucket", "Confluence", "GraphQL", "gRPC", "Swagger",
-    "JUnit", "Jest", "Cypress", "Selenium",
+      # 언어
+      "Python", "Java", "Kotlin", "Swift", "JavaScript", "TypeScript",
+      "Go", "Golang", "Rust", "Scala", "Ruby", "PHP", "Dart", "Perl", "Lua", "Groovy",
+      "C++", "C#",
+      # 프론트엔드
+      "React", "Vue", "Vue.js", "Angular", "Next.js", "NestJS", "Svelte", "Nuxt.js",
+      "HTML", "CSS", "Sass", "SCSS", "Tailwind", "Bootstrap", "jQuery", "Webpack", "Vite",
+      "Redux", "Zustand", "Recoil", "MobX", "Storybook", "Electron",
+      # 모바일
+      "Flutter", "React Native", "SwiftUI",
+      # 백엔드 프레임워크
+      "Spring", "Spring Boot", "Spring Security", "Spring MVC", "Spring Batch", "Spring Cloud",
+      "FastAPI", "Django", "Flask", "Express", "Rails", "ASP.NET",
+      # ORM / 빌드
+      "JPA", "Hibernate", "MyBatis", "QueryDSL", "Lombok", "Gradle", "Maven",
+      # 데이터베이스
+      "PostgreSQL", "MySQL", "MariaDB", "Oracle", "MSSQL", "SQLite",
+      "MongoDB", "Redis", "Elasticsearch", "Cassandra", "DynamoDB", "Neo4j", "InfluxDB",
+      "Tibero", "Altibase", "Snowflake", "BigQuery",
+      "SQL", "NoSQL",
+      # 클라우드
+      "AWS", "GCP", "Azure", "EC2", "EKS", "CloudFormation",
+      # 컨테이너 / 오케스트레이션
+      "Docker", "Kubernetes", "K8s", "Helm", "ArgoCD", "Podman",
+      # 인프라
+      "Terraform", "Ansible", "Nginx", "Apache", "Linux",
+      "OpenStack", "Ceph", "GlusterFS", "MinIO", "VMware", "KVM",
+      # CI/CD
+      "Jenkins", "GitHub Actions", "GitLab CI", "CircleCI", "SonarQube", "GitLab Runner",
+      "CI/CD",
+      # 모니터링
+      "Prometheus", "Grafana", "Pinpoint", "Datadog",
+      "Kibana", "Logstash", "ELK", "OpenTelemetry", "Jaeger",
+      # 메시지 큐 / 스트리밍
+      "Kafka", "RabbitMQ", "Flink",
+      # 데이터 엔지니어링
+      "Spark", "Hadoop", "Airflow", "dbt", "Trino", "Databricks",
+      # ML / AI
+      "PyTorch", "TensorFlow", "Keras", "scikit-learn",
+      "Pandas", "NumPy", "XGBoost", "LightGBM",
+      "MLflow", "Hugging Face", "LangChain",
+      "LLM", "CUDA", "MLOps", "NLP", "AI",
+      # 버전 관리 / 협업
+      "Git", "GitHub", "GitLab", "Bitbucket",
+      "Jira", "Confluence", "Figma", "Notion",
+      # API / 통신
+      "GraphQL", "gRPC", "Swagger", "REST",
+      # 테스트
+      "JUnit", "Jest", "Cypress", "Selenium", "Playwright",
+      "Pytest", "Mockito", "TestNG", "Vitest", "k6",
+      # 보안
+      "보안", "정보보안", "취약점", "방화벽", "ISMS",
 ]
 
 
