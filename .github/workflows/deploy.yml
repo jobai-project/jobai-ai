@@ -20,7 +20,7 @@ env:
   AWS_REGION: ap-northeast-2
   ECR_REGISTRY: 077660206269.dkr.ecr.ap-northeast-2.amazonaws.com
   ECR_REPOSITORY: jobai-ai-server
-  AI_EC2_INSTANCE_ID: i-08aa8bb37f1df87c1
+  AI_EC2_INSTANCE_ID: i-0e29af5fcaf5b149a
   AI_MODEL_S3_BUCKET: jobai-ai-models-077660206269-ap-northeast-2
   JD_MODEL_S3_PREFIX: models/jd/
   NCS_MODEL_S3_PREFIX: models/ncs/
